@@ -1,7 +1,8 @@
 #!/usr/bin/python
 import logging
-
 import argparse
+import cStringIO
+import sys
 import traceback as tb
 
 # global const var
@@ -10,10 +11,10 @@ EXP = ''
 PORT = 0
 HOOK_SCRIPT = '''\
 from pwn import *
-context.log_level = 100
 # disable pwnlib log
 logger = logging.getLogger('pwnlib')
 logger.handlers = []
+logger.setLevel(100)
 old_remote = remote
 def new_remote(*args, **kwargs):
     global AWD_REMOTE
@@ -69,17 +70,21 @@ if __name__ == '__main__':
     parser.add_argument('exp', metavar='exploit.py')
     parser.add_argument('ip', help='support ip range like 192.168.1.1-15 192.168.1-15.1')
     parser.add_argument('port', type=int)
-    parser.add_argument('-d', type=int, choices=[0, 1, 2], default=0,
+    parser.add_argument('-d', type=int, choices=[0, 1, 2, 3], default=1,
                     help='debug level')
     args = parser.parse_args()
     
     #init
-    if args.d >= 1:
-        log_level = logging.DEBUG
-    else:
+    if args.d == 0:
+        log_level = 100
+    elif args.d == 1:
         log_level = logging.INFO
-    if args.d == 2:
-        HOOK_SCRIPT = HOOK_SCRIPT.replace('context.log_level = 100', 'context.log_level = \'debug\'')
+    elif args.d >= 2:
+        log_level = logging.DEBUG
+
+    if args.d == 3:
+        HOOK_SCRIPT = HOOK_SCRIPT.replace('logger.setLevel(100)', 'logger.setLevel(10)')
+
     logging.basicConfig(level=log_level,
         format='%(levelname)s | %(asctime)s | %(filename)s[line:%(lineno)d] | %(message)s',
         datefmt='%H:%M:%S') 
