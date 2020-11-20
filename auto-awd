@@ -1,0 +1,24 @@
+#!/usr/bin/python
+
+import sys
+
+exp = open(sys.argv[1]).read()
+ip = sys.argv[2]
+port = sys.argv[3]
+
+exp = open('test.py').read()
+ip = 'localhost'
+port = 1234
+
+hook_script = '''\
+from pwn import *
+old_remote = remote
+def new_remote(*args, **kwargs):
+    return old_remote('{}', {})
+process = new_remote
+remote = new_remote
+'''
+
+new_exp = exp.replace('from pwn import *\n', hook_script.format(ip, port))
+empty_globals = {}
+exec(new_exp, empty_globals)
