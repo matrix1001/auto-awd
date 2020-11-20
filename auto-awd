@@ -23,6 +23,29 @@ def new_remote(*args, **kwargs):
 process = new_remote
 remote = new_remote
 '''
+WELPWN_HOOK_SCRIPT = '''\
+from PwnContext import *
+# disable pwnlib log
+logger = logging.getLogger('pwnlib')
+logger.handlers = []
+logger.setLevel(100)
+old_remote = remote
+def new_remote(*args, **kwargs):
+    global AWD_REMOTE
+    AWD_REMOTE = old_remote(AWD_IP, AWD_PORT)
+    ctx.io = AWD_REMOTE
+    return AWD_REMOTE
+ctx.start = new_remote
+process = new_remote
+remote = new_remote
+'''
+
+def gen_exp(path):
+    content = open(path).read()
+    content = content.replace('from pwn import *\n', HOOK_SCRIPT)
+    content = content.replace('from PwnContext import *\n', WELPWN_HOOK_SCRIPT)
+    content = content.replace('if __name__', 'if \'__main__\'')
+    return content
 
 def get_ip_list(raw_ip):
     def get_range(str_num):
@@ -88,7 +111,8 @@ if __name__ == '__main__':
     logging.basicConfig(level=log_level,
         format='%(levelname)s | %(asctime)s | %(filename)s[line:%(lineno)d] | %(message)s',
         datefmt='%H:%M:%S') 
-    EXP = open(args.exp).read().replace('from pwn import *\n', HOOK_SCRIPT)
+
+    EXP = gen_exp(args.exp)
     logging.debug('New exp script:\n{}'.format(EXP))
     ip_list = get_ip_list(args.ip)
     PORT = args.port
